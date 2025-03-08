@@ -171,12 +171,13 @@ const userSchema = new mongoose.Schema(
         },
       },
     },
-    refreshToken: {
-      type: String,
-    },
-    refreshTokenExpiresAt: {
-      type: Date,
-    },
+    refreshTokens: [
+      {
+        token: String,
+        deviceId: String,
+        expiresAt: Date,
+      },
+    ],
   },
   { timestamps: true }
 );

@@ -5,6 +5,8 @@ import { generateTokens, setCookies } from "../lib/auth.js";
 import User from "../models/user.model.js";
 import Slot from "../models/slot.model.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const fetchUserData = async (req, res) => {
   try {
     const user = req.user;
@@ -53,6 +55,7 @@ export const fetchUserData = async (req, res) => {
 
 export const login = async (req, res) => {
   const { name, email } = req.user;
+  const deviceId = req.body.deviceId;
   if (
     !email ||
     email.trim().length === 0 ||
@@ -62,6 +65,11 @@ export const login = async (req, res) => {
     return res
       .status(400)
       .json({ success: false, message: "Email and name are required" });
+  }
+  if (!deviceId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Device ID is required" });
   }
   const regNoIndex = name.lastIndexOf(" ");
   const userName = name.slice(0, regNoIndex).trim();
@@ -80,10 +88,15 @@ export const login = async (req, res) => {
       user = await User.create({ name: userName, email, isFresher });
     }
     const { accessToken, refreshToken } = generateTokens(user._id);
-    const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + 60 * 60 * 24 * 7);
-    user.refreshToken = refreshToken;
-    user.refreshTokenExpiresAt = expiresAt;
+    user.refreshTokens = user.refreshTokens || [];
+    user.refreshTokens = user.refreshTokens.filter(
+      (t) => t.deviceId !== deviceId
+    );
+    user.refreshTokens.push({
+      token: refreshToken,
+      deviceId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
     await user.save();
     setCookies(res, accessToken, refreshToken);
     return res.status(currentUser ? 200 : 201).json({
@@ -126,18 +139,28 @@ export const logout = async (req, res) => {
         process.env.REFRESH_TOKEN_SECRET
       );
       await User.findByIdAndUpdate(decoded.userId, {
-        $unset: { refreshToken: 1, refreshTokenExpiresAt: 1 },
+        $pull: { refreshTokens: { token: refreshToken } },
       });
     }
-    res.clearCookie("accessToken", { httpOnly: true });
-    res.clearCookie("refreshToken", { httpOnly: true });
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      path: "/",
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      path: "/",
+    });
     return res
       .status(200)
       .json({ success: true, message: "Logout successful" });
   } catch (err) {
     return res
       .status(500)
-      .json({ success: false, message: "Server error", err: err.message });
+      .json({ success: false, message: "Server error", error: err.message });
   }
 };
 
@@ -149,9 +172,16 @@ export const refreshToken = async (req, res) => {
         .status(401)
         .json({ success: false, message: "Refresh token is required" });
     }
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Expired refresh token" });
+    }
     const user = await User.findById(decoded.userId);
-    if (!user || user.refreshToken !== refreshToken) {
+    if (!user || !user.refreshTokens.find((t) => t.token === refreshToken)) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid refresh token" });
@@ -163,8 +193,8 @@ export const refreshToken = async (req, res) => {
     );
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
+      secure: isProduction,
+      sameSite: "Strict",
       maxAge: 15 * 60 * 1000,
     });
     return res

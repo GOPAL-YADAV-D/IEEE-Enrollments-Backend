@@ -21,12 +21,13 @@ const adminSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    refreshToken: {
-      type: String,
-    },
-    refreshTokenExpiresAt: {
-      type: Date,
-    },
+    refreshTokens: [
+      {
+        token: String,
+        deviceId: String,
+        expiresAt: Date,
+      },
+    ],
   },
   { timestamps: true }
 );

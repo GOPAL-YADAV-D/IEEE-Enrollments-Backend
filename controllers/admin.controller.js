@@ -7,6 +7,8 @@ import Admin from "../models/admin.model.js";
 import Slot from "../models/slot.model.js";
 import sendMail from "../lib/mail.js";
 
+const isProduction = process.env.NODE_ENV === "production";
+
 export const fetchAdminData = async (req, res) => {
   try {
     const admin = req.user;
@@ -29,6 +31,7 @@ export const fetchAdminData = async (req, res) => {
 
 export const login = async (req, res) => {
   const { name, email } = req.user;
+  const deviceId = req.body.deviceId;
   if (
     !email ||
     email.trim().length === 0 ||
@@ -38,6 +41,11 @@ export const login = async (req, res) => {
     return res
       .status(400)
       .json({ success: false, message: "Email and name are required" });
+  }
+  if (!deviceId) {
+    return res
+      .status(400)
+      .json({ success: false, message: "Device ID is required" });
   }
   const regNoIndex = name.lastIndexOf(" ");
   const adminName = name.slice(0, regNoIndex).trim();
@@ -50,10 +58,15 @@ export const login = async (req, res) => {
       admin = await Admin.create({ name: adminName, email });
     }
     const { accessToken, refreshToken } = generateTokens(admin._id);
-    const expiresAt = new Date();
-    expiresAt.setSeconds(expiresAt.getSeconds() + 60 * 60 * 24 * 7);
-    admin.refreshToken = refreshToken;
-    admin.refreshTokenExpiresAt = expiresAt;
+    admin.refreshTokens = admin.refreshTokens || [];
+    admin.refreshTokens = admin.refreshTokens.filter(
+      (t) => t.deviceId !== deviceId
+    );
+    admin.refreshTokens.push({
+      token: refreshToken,
+      deviceId,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
     await admin.save();
     setCookies(res, accessToken, refreshToken);
     return res.status(currentAdmin ? 200 : 201).json({
@@ -81,17 +94,29 @@ export const logout = async (req, res) => {
         refreshToken,
         process.env.REFRESH_TOKEN_SECRET
       );
-      await Admin.findByIdAndUpdate(decoded.adminId, {
-        $unset: { refreshToken: 1, refreshTokenExpiresAt: 1 },
+      await Admin.findByIdAndUpdate(decoded.userId, {
+        $pull: { refreshTokens: { token: refreshToken } },
       });
     }
-    res.clearCookie("accessToken", { httpOnly: true });
-    res.clearCookie("refreshToken", { httpOnly: true });
+    res.clearCookie("accessToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      path: "/",
+    });
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "Strict",
+      path: "/",
+    });
     return res
       .status(200)
       .json({ success: true, message: "Logout successful" });
   } catch (err) {
-    return res.status(500).json({ message: "Server error", err: err.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Server error", error: err.message });
   }
 };
 
@@ -103,22 +128,29 @@ export const refreshToken = async (req, res) => {
         .status(401)
         .json({ success: false, message: "Refresh token is required" });
     }
-    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
-    const admin = await Admin.findById(decoded.adminId);
-    if (!admin || admin.refreshToken !== refreshToken) {
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+    } catch (err) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Expired refresh token" });
+    }
+    const admin = await Admin.findById(decoded.userId);
+    if (!admin || !admin.refreshTokens.find((t) => t.token === refreshToken)) {
       return res
         .status(401)
         .json({ success: false, message: "Invalid refresh token" });
     }
     const accessToken = jwt.sign(
-      { adminId: admin._id },
+      { userId: admin._id },
       process.env.ACCESS_TOKEN_SECRET,
       { expiresIn: "15m" }
     );
     res.cookie("accessToken", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "None",
+      secure: isProduction,
+      sameSite: "Strict",
       maxAge: 15 * 60 * 1000,
     });
     return res

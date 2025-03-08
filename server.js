@@ -12,7 +12,11 @@ const app = express();
 
 app.use(
   cors({
-    origin: process.env.APPLICATION_URL,
+    origin: [
+      process.env.APPLICATION_URL,
+      "http://localhost:5173",
+      "http://localhost:5174",
+    ],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -28,7 +32,6 @@ app.use("/api/admin", adminRoutes);
 app.get("/", (req, res) => {
   res.send("IEEE VIT Enrollment 2025");
 });
-
 
 connectDB();
 
