@@ -41,7 +41,7 @@ const userSchema = new mongoose.Schema(
       githubProfile: {
         type: String,
         match: [
-          /^https:\/\/github\.com\/[a-zA-Z0-9](?:[a-zA-Z0-9-_.]{0,38}[a-zA-Z0-9])?$/,
+          /^https:\/\/github\.com\/[a-zA-Z0-9-]+\/?$/,
           "Invalid github profile",
         ],
         default: null,
