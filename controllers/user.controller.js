@@ -232,7 +232,7 @@ export const round0Submission = async (req, res) => {
     }
     if (
       githubProfile &&
-      /^https:\/\/github\.com\/[a-zA-Z0-9-]+\/?$/.test(githubProfile)
+      !/^(https:\/\/github\.com\/)?[a-zA-Z0-9-]+\/?$/.test(githubProfile)
     ) {
       return res
         .status(400)
