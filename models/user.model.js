@@ -14,6 +14,9 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
+    picture: {
+      type: String,
+    },
     isFresher: {
       type: Boolean,
       default: false,

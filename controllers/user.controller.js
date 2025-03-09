@@ -20,6 +20,7 @@ export const fetchUserData = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        picture: user.picture,
         isEliminated: user.isEliminated,
         currentRound: user.currentRound,
         round0Status: user.round0.status,
@@ -54,17 +55,20 @@ export const fetchUserData = async (req, res) => {
 };
 
 export const login = async (req, res) => {
-  const { name, email } = req.user;
+  const { name, email, picture } = req.user;
   const deviceId = req.body.deviceId;
   if (
     !email ||
     email.trim().length === 0 ||
     !name ||
-    name.trim().length === 0
+    name.trim().length === 0 ||
+    !picture ||
+    picture.trim().length === 0
   ) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Email and name are required" });
+    return res.status(400).json({
+      success: false,
+      message: "Email, name and picture are required",
+    });
   }
   if (!deviceId) {
     return res
@@ -85,7 +89,7 @@ export const login = async (req, res) => {
         users: user._id,
       });
     } else {
-      user = await User.create({ name: userName, email, isFresher });
+      user = await User.create({ name: userName, email, isFresher, picture });
     }
     const { accessToken, refreshToken } = generateTokens(user._id);
     user.refreshTokens = user.refreshTokens || [];
@@ -105,6 +109,7 @@ export const login = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        picture: user.picture,
         isEliminated: user.isEliminated,
         currentRound: user.currentRound,
         round0Status: user.round0.status,
