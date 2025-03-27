@@ -217,7 +217,7 @@ export const createSlot = async (req, res) => {
 export const fetchAllSlots = async (req, res) => {
   try {
     const { status } = req.body;
-    const validStatuses = ["pending", "ready", "completed"];
+    const validStatuses = ["pending", "ongoing"];
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
@@ -225,10 +225,18 @@ export const fetchAllSlots = async (req, res) => {
       });
     }
     const filter = {
-      status: status === "ready" ? "pending" : status,
-      ...(status === "ready" && { isReady: true }),
+      ...(status === "pending" && {
+        status: "pending",
+        isReady: true,
+        $or: [{ meetLink: null }, { meetLink: { $exists: false } }],
+      }),
+      ...(status === "ongoing" && {
+        status: "pending",
+        isReady: true,
+        meetLink: { $exists: true, $ne: null },
+      }),
     };
-    const slots = await Slot.find(filter);
+    const slots = await Slot.find(filter).populate("users").populate("admins");
     return res.status(200).json({
       success: true,
       data: slots,
@@ -257,7 +265,11 @@ export const takeSlot = async (req, res) => {
   try {
     const slot = await Slot.findOneAndUpdate(
       { _id: slotId, reviewer: null },
-      { reviewer: admin._id, meetLink: admin.meetLink },
+      {
+        reviewer: admin._id,
+        meetLink: admin.meetLink,
+        $addToSet: { admins: admin._id },
+      },
       { new: true }
     )
       .populate("users", "name email currentRound round0 rounds")
@@ -307,17 +319,18 @@ export const joinSlot = async (req, res) => {
         message: "Slot does not have a reviewer yet",
       });
     }
-    if (slot.admins.some((id) => id.toString() === admin._id.toString())) {
-      return res.status(400).json({
-        success: false,
-        message: "Admin is already assigned to this slot",
-      });
+    const isAdminAlreadyAssigned = slot.admins.some((adminId) =>
+      adminId.equals(admin._id)
+    );
+    if (!isAdminAlreadyAssigned) {
+      slot.admins.push(admin._id);
+      await slot.save();
     }
-    slot.admins.push(admin._id);
-    await slot.save();
     return res.status(200).json({
       success: true,
-      message: "Admin added to the slot successfully",
+      message: isAdminAlreadyAssigned
+        ? "Admin is already assigned to this slot"
+        : "Admin added to the slot successfully",
       data: slot,
     });
   } catch (err) {
@@ -331,14 +344,13 @@ export const reviewSlots = async (req, res) => {
   const admin = req.user;
   try {
     const slots = await Slot.find({ reviewer: admin._id })
-      .populate("users", "name rounds")
+      .populate("users", "name round0 rounds")
       .lean();
     const filteredSlots = slots.filter((slot) => {
       return slot.users?.some((user) => {
         const rounds = user.rounds || {};
-        if (slot.round === 1) return rounds.round1?.review === null;
-        if (slot.round === 2) return rounds.round2?.review === null;
-        if (slot.round === 3) return rounds.round3?.review === null;
+        if (slot.round === 1) return rounds.round1?.status === "pending";
+        if (slot.round === 3) return rounds.round3?.status === "pending";
         return false;
       });
     });
@@ -353,6 +365,8 @@ export const reviewSlots = async (req, res) => {
           slot.users?.map((user) => ({
             _id: user._id,
             name: user.name,
+            round0: user.round0,
+            rounds: user.rounds,
           })) || [],
         reviewer: slot.reviewer,
         status: slot.status,
@@ -367,7 +381,26 @@ export const reviewSlots = async (req, res) => {
 
 export const reviewSubmission = async (req, res) => {
   const { slotId, userId } = req.params;
-  const { review, taskTitle, taskDescription, taskDeadline } = req.body;
+  const {
+    techStack,
+    technicalSkills,
+    communicationSkills,
+    problemSolving,
+    domainKnowledge,
+    interestToLearn,
+    managementSkills,
+    overallRating,
+    additionalFeedback,
+    groupDiscussion,
+    communication,
+    leadership,
+    criticalThinking,
+    teamwork,
+    relevancy,
+    taskTitle,
+    taskDescription,
+    taskDeadline,
+  } = req.body;
   if (
     !mongoose.Types.ObjectId.isValid(slotId) ||
     !mongoose.Types.ObjectId.isValid(userId)
@@ -376,27 +409,6 @@ export const reviewSubmission = async (req, res) => {
       .status(400)
       .json({ success: false, message: "Invalid slot ID or user ID" });
   }
-  if (!review?.trim()) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Review is required" });
-  }
-  if (!taskTitle?.trim()) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Task title is required" });
-  }
-  if (!taskDescription?.trim()) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Task Description is required" });
-  }
-  if (!taskDeadline) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Task deadline is required" });
-  }
-  const taskDeadlineIST = moment.tz(taskDeadline, "Asia/Kolkata").toDate();
   try {
     const slot = await Slot.findById(slotId).populate("users", "_id");
     if (!slot) {
@@ -412,37 +424,58 @@ export const reviewSubmission = async (req, res) => {
         .status(403)
         .json({ success: false, message: "User is not part of this slot" });
     }
-    const roundKey = `rounds.round${slot.round}`;
-    if (
-      !["rounds.round1", "rounds.round2", "rounds.round3"].includes(roundKey)
-    ) {
-      return res
-        .status(400)
-        .json({ success: false, message: "Invalid round number in slot" });
-    }
-    const updateData = {
-      [`${roundKey}.review`]: review,
-      [`${roundKey}.status`]: "completed",
-    };
-    if (slot.round !== 3) {
-      updateData[`${roundKey}.taskTitle`] = taskTitle;
-      updateData[`${roundKey}.taskDescription`] = taskDescription;
-      updateData[`${roundKey}.taskDeadline`] = taskDeadlineIST;
+    const updateData = {};
+    // Round 1 Reviews
+    if (slot.round === 1) {
+      updateData["rounds.round1.techStack"] = techStack || null;
+      updateData["rounds.round1.technicalSkills"] = technicalSkills || null;
+      updateData["rounds.round1.communicationSkills"] =
+        communicationSkills || null;
+      updateData["rounds.round1.problemSolving"] = problemSolving || null;
+      updateData["rounds.round1.domainKnowledge"] = domainKnowledge || null;
+      updateData["rounds.round1.interestToLearn"] = interestToLearn || null;
+      updateData["rounds.round1.managementSkills"] = managementSkills || null;
+      updateData["rounds.round1.overallRating"] = overallRating || null;
+      updateData["rounds.round1.additionalFeedback"] =
+        additionalFeedback || null;
+      updateData["rounds.round1.groupDiscussion"] = groupDiscussion || null;
+      updateData["rounds.round1.communication"] = communication || null;
+      updateData["rounds.round1.leadership"] = leadership || null;
+      updateData["rounds.round1.criticalThinking"] = criticalThinking || null;
+      updateData["rounds.round1.teamwork"] = teamwork || null;
+      updateData["rounds.round1.relevancy"] = relevancy || null;
+      updateData["rounds.round1.status"] = "completed";
+      if (!taskTitle || !taskDescription || !taskDeadline) {
+        return res.status(400).json({
+          success: false,
+          message:
+            "All task fields (title, description, deadline) are required",
+        });
+      }
+      const taskDeadlineIST = moment.tz(taskDeadline, "Asia/Kolkata").toDate();
+      updateData["rounds.round2.taskTitle"] = taskTitle;
+      updateData["rounds.round2.taskDescription"] = taskDescription;
+      updateData["rounds.round2.taskDeadline"] = taskDeadlineIST;
+      updateData["rounds.round2.status"] = "pending";
     }
     const updateQuery = { $set: updateData };
-    if (slot.round !== 3) {
+    if (slot.round === 1) {
       updateQuery.$inc = { currentRound: 1 };
     }
     await User.updateOne({ _id: userId }, updateQuery);
     slot.status = "completed";
+    await slot.save();
     return res.status(200).json({
       success: true,
-      message: "Review submission successful",
+      message: `Review submission successful for Round ${slot.round}`,
     });
   } catch (err) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Server error", error: err.message });
+    console.error("Error:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Server error",
+      error: err.message,
+    });
   }
 };
 

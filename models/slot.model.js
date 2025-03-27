@@ -42,7 +42,7 @@ const slotSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["upcoming", "pending", "completed"],
+      enum: ["upcoming", "pending", "completed", "missed"],
       default: "upcoming",
     },
   },

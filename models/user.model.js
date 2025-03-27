@@ -103,28 +103,65 @@ const userSchema = new mongoose.Schema(
     },
     rounds: {
       round1: {
-        review: {
+        techStack: {
           type: String,
           default: null,
         },
-        taskTitle: {
+        technicalSkills: {
           type: String,
           default: null,
         },
-        taskDescription: {
+        communicationSkills: {
           type: String,
           default: null,
         },
-        taskLink: {
+        problemSolving: {
           type: String,
           default: null,
         },
-        taskDeadline: {
-          type: Date,
+        domainKnowledge: {
+          type: String,
+          default: null,
         },
-        taskSubmitted: {
-          type: Boolean,
-          default: false,
+        interestToLearn: {
+          type: String,
+          default: null,
+        },
+        managementSkills: {
+          type: String,
+          default: null,
+        },
+        overallRating: {
+          type: String,
+          default: null,
+        },
+        additionalFeedback: {
+          type: String,
+          default: null,
+        },
+        groupDiscussion: {
+          type: String,
+          default: null,
+        },
+        communication: {
+          type: String,
+          default: null,
+        },
+        leadership: {
+          type: String,
+          default: null,
+        },
+        criticalThinking: {
+          type: String,
+          default: null,
+        },
+        teamwork: {
+          type: String,
+          default: null,
+        },
+        relevancy: {
+          type: String,
+          default: null,
         },
         status: {
           type: String,
@@ -133,10 +170,6 @@ const userSchema = new mongoose.Schema(
         },
       },
       round2: {
-        review: {
-          type: String,
-          default: null,
-        },
         taskTitle: {
           type: String,
           default: null,

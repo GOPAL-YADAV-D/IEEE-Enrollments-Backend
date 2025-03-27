@@ -34,7 +34,7 @@ router.post(
   protectSuperadminRoute,
   createSlot
 );
-router.get("/get-all-slots", protectAdminRoute, fetchAllSlots);
+router.post("/get-all-slots", protectAdminRoute, fetchAllSlots);
 router.put("/take-slot/:slotId", protectAdminRoute, takeSlot);
 router.put("/join-slot/:slotId", protectAdminRoute, joinSlot);
 router.get("/review-slots", protectAdminRoute, reviewSlots);
