@@ -27,6 +27,10 @@ export const fetchUserData = async (req, res) => {
         round1Status: user.rounds.round1.status,
         round2Status: user.rounds.round2.status,
         round3Status: user.rounds.round3.status,
+        task: {
+          taskTitle: user.rounds.round2.taskTitle,
+          taskDescription: user.rounds.round2.taskDescription,
+        },
         slot: slot
           ? {
               _id: slot._id,
@@ -116,6 +120,10 @@ export const login = async (req, res) => {
         round1Status: user.rounds.round1.status,
         round2Status: user.rounds.round2.status,
         round3Status: user.rounds.round3.status,
+        task: {
+          taskTitle: user.rounds.round2.taskTitle,
+          taskDescription: user.rounds.round2.taskDescription,
+        },
         slot: slot
           ? {
               _id: slot._id,

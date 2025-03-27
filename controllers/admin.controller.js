@@ -282,8 +282,15 @@ export const takeSlot = async (req, res) => {
       });
     }
     const userEmails = slot.users.map((user) => user.email);
-    const subject = "Your Interview Meet Link";
-    const message = `<div style="font-family: poppins, sans-serif; padding: 10px;"><h2 style="color: #007bff;">Interview Meet Link</h2><p>Hello,</p><p>Below are your Round details:</p><p><strong>Meet Link:</strong> <a href="${slot.meetLink}" style="color: #28a745; text-decoration: none;">Join Meeting</a></p><p>Please join on time. Wishing you all the best!</p><br><p>Regards,</p><p><strong>IEEE VIT</strong></p></div>`;
+    const subject = "IEEE-VIT Interview";
+    const message = `<div>Dear ${slot.users[0].name},<br><br>
+
+Kindly join the below meet for your scheduled interview<br><br>
+${slot.meetLink}<br><br>
+Good luck 
+<br><br>
+Regards,<br>
+IEEE-VIT</div>`;
     userEmails.forEach((email) => sendMail(email, subject, message));
     return res.status(200).json({
       success: true,
