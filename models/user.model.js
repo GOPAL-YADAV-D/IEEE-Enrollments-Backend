@@ -31,6 +31,18 @@ const userSchema = new mongoose.Schema(
       max: 3,
       default: 0,
     },
+    isRound1Missed: {
+      type: Boolean,
+      default: false,
+    },
+    isRound2Missed: {
+      type: Boolean,
+      default: false,
+    },
+    isRound3Missed: {
+      type: Boolean,
+      default: false,
+    },
     round0: {
       contactNo: {
         type: Number,

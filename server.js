@@ -33,6 +33,10 @@ app.get("/", (req, res) => {
   res.send("IEEE VIT Enrollment 2025");
 });
 
+app.get("/api/server-time", (req, res) => {
+  res.json({ serverTime: new Date().toISOString() }); // Always UTC
+});
+
 connectDB();
 
 if (process.env.NODE_ENV !== "production") {

@@ -27,9 +27,13 @@ export const fetchUserData = async (req, res) => {
         round1Status: user.rounds.round1.status,
         round2Status: user.rounds.round2.status,
         round3Status: user.rounds.round3.status,
+        isRound1Missed: user.isRound1Missed,
+        isRound2Missed: user.isRound2Missed,
+        isRound3Missed: user.isRound3Missed,
         task: {
           taskTitle: user.rounds.round2.taskTitle,
           taskDescription: user.rounds.round2.taskDescription,
+          taskDeadline: user.rounds.round2.taskDeadline,
         },
         slot: slot
           ? {
@@ -120,9 +124,13 @@ export const login = async (req, res) => {
         round1Status: user.rounds.round1.status,
         round2Status: user.rounds.round2.status,
         round3Status: user.rounds.round3.status,
+        isRound1Missed: user.isRound1Missed,
+        isRound2Missed: user.isRound2Missed,
+        isRound3Missed: user.isRound3Missed,
         task: {
           taskTitle: user.rounds.round2.taskTitle,
           taskDescription: user.rounds.round2.taskDescription,
+          taskDeadline: user.rounds.round2.taskDeadline,
         },
         slot: slot
           ? {
@@ -468,25 +476,23 @@ export const taskSubmission = async (req, res) => {
         message: "Task link is required",
       });
     }
-    const roundKey = `rounds.round${user.currentRound - 1}.taskLink`;
-    const currentTimeIST = moment().tz("Asia/Kolkata").toDate();
+    const roundKey = `rounds.round${user.currentRound}.taskLink`;
+    const currentTimeIST = moment().tz("Asia/Kolkata").toDate(); // Get current time as Date object
+    const deadline = new Date(user.rounds.round2.taskDeadline.toString());
     if (
       user.currentRound === 2 &&
-      !user.rounds.round1.taskSubmitted &&
-      user.rounds.round1.taskDeadline &&
-      moment(user.rounds.round1.taskDeadline).isAfter(currentTimeIST)
-    ) {
-      user.set(roundKey, taskLink);
-      user.rounds.round1.taskSubmitted = true;
-    } else if (
-      user.currentRound === 3 &&
       !user.rounds.round2.taskSubmitted &&
       user.rounds.round2.taskDeadline &&
-      moment(user.rounds.round2.taskDeadline).isAfter(currentTimeIST)
+      currentTimeIST > deadline
     ) {
       user.set(roundKey, taskLink);
       user.rounds.round2.taskSubmitted = true;
+      user.currentRound += 1;
+      user.rounds.round2.status = "completed";
     } else {
+      user.isRound2Missed = true;
+      user.currentRound += 1;
+      await user.save();
       return res.status(400).json({
         success: false,
         message: "You are not eligible for task submission",
