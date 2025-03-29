@@ -477,28 +477,22 @@ export const taskSubmission = async (req, res) => {
       });
     }
     const roundKey = `rounds.round${user.currentRound}.taskLink`;
-    const currentTimeIST = moment().tz("Asia/Kolkata").toDate(); // Get current time as Date object
-    const deadline = new Date(user.rounds.round2.taskDeadline.toString());
     if (
       user.currentRound === 2 &&
       !user.rounds.round2.taskSubmitted &&
-      user.rounds.round2.taskDeadline &&
-      currentTimeIST > deadline
+      !user.isRound2Missed
     ) {
       user.set(roundKey, taskLink);
       user.rounds.round2.taskSubmitted = true;
-      user.currentRound += 1;
+      user.currentRound = 3;
       user.rounds.round2.status = "completed";
+      user.save();
     } else {
-      user.isRound2Missed = true;
-      user.currentRound += 1;
-      await user.save();
       return res.status(400).json({
         success: false,
         message: "You are not eligible for task submission",
       });
     }
-    await user.save();
     return res.status(200).json({
       success: true,
       message: "Task submission successful",

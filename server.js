@@ -34,7 +34,14 @@ app.get("/", (req, res) => {
 });
 
 app.get("/api/server-time", (req, res) => {
-  res.json({ serverTime: new Date().toISOString() }); // Always UTC
+  const serverTime = new Date().toISOString();
+  res.set(
+    "Cache-Control",
+    "no-store, no-cache, must-revalidate, proxy-revalidate"
+  );
+  res.set("Pragma", "no-cache");
+  res.set("Expires", "0");
+  res.json({ time: serverTime });
 });
 
 connectDB();
