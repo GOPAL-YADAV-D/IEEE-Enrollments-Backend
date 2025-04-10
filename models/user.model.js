@@ -208,7 +208,19 @@ const userSchema = new mongoose.Schema(
         },
       },
       round3: {
-        review: {
+        technicalSkills: {
+          type: String,
+          default: null,
+        },
+        projectPerformance: {
+          type: String,
+          default: null,
+        },
+        communicationSkills: {
+          type: String,
+          default: null,
+        },
+        teamworkAbilities: {
           type: String,
           default: null,
         },

@@ -407,6 +407,8 @@ export const reviewSubmission = async (req, res) => {
     taskTitle,
     taskDescription,
     taskDeadline,
+    projectPerformance,
+    teamworkAbilities,
   } = req.body;
   if (
     !mongoose.Types.ObjectId.isValid(slotId) ||
@@ -464,6 +466,14 @@ export const reviewSubmission = async (req, res) => {
       updateData["rounds.round2.taskDescription"] = taskDescription;
       updateData["rounds.round2.taskDeadline"] = taskDeadlineIST;
       updateData["rounds.round2.status"] = "pending";
+    } else if (slot.round === 3) {
+      updateData["rounds.round3.technicalSkills"] = technicalSkills || null;
+      updateData["rounds.round3.communicationSkills"] =
+        communicationSkills || null;
+      updateData["rounds.round3.teamworkAbilities"] = teamworkAbilities || null;
+      updateData["rounds.round3.projectPerformance"] =
+        projectPerformance || null;
+      updateData["rounds.round3.status"] = "completed";
     }
     const updateQuery = { $set: updateData };
     if (slot.round === 1) {
